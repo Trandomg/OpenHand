@@ -10,3 +10,6 @@ packages/
 .editorconfig
 *cs.uid
 *.user
+nuget.config
+export_presets.cfg
+global.json
