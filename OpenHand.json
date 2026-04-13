@@ -1,0 +1,11 @@
+{
+  "id": "OpenHand",
+  "name": "Open Hand",
+  "author": "Trandomg",
+  "description": "A mod that allows you to peek at teammates cards during fights.",
+  "version": "v1.0.0",
+  "has_pck": true,
+  "has_dll": true,
+  "dependencies": ["BaseLib"],
+  "affects_gameplay": false
+}
