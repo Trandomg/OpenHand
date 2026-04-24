@@ -9,6 +9,7 @@ using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 using HarmonyLib;
 
+
 namespace OpenHand.OpenHandCode;
 
 
@@ -37,9 +38,15 @@ internal class NMultiplayerPlayerStateOpenHand
             //Set the height of the displayed cards to the hovered Player's HP bar.
             if (Traverse.Create(__instance).Field("_healthBar").GetValue() is NHealthBar hpBarRef)
                 CardContainer.GlobalPosition = new Vector2(hpBarRef.GlobalPosition.X + 280f, hpBarRef.GlobalPosition.Y);
-            
+
             if (CardContainer.GetParent() == null)
+            {
                 instance?.AddChild(CardContainer);
+                CardContainer.AddToGroup("CardContainers");
+            }
+
+            //Very odd solution, create own custom property
+            CardContainer.AccessibilityName = __instance.Player.NetId.ToString();
             
             IReadOnlyList<CardModel> otherHand = PileType.Hand.GetPile(__instance.Player).Cards;
             
@@ -77,4 +84,31 @@ internal class NMultiplayerPlayerStateOpenHand
         cardTween.TweenProperty((GodotObject) cards, (NodePath) "modulate:a", (Variant) 1f, (double) duration);
     }
 }
+
+[HarmonyPatch("RefreshCombatValues")]
+[HarmonyPatch(typeof(NMultiplayerPlayerState))]
+internal class RefreshCombatValuesOpenHand
+{
+    private static NGame? instance = NGame.Instance;
+    private static Control? CardContainer;
+    private static void Postfix(NMultiplayerPlayerState __instance)
+    {
+        CardContainer = (Control)instance.GetTree().GetFirstNodeInGroup("CardContainers");
+        if (CardContainer != null && __instance.Player.NetId.ToString().Equals(CardContainer.AccessibilityName))
+        {
+            CardContainer.GetNode("HBoxContainer").FreeChildren();
+            IReadOnlyList<CardModel> otherHand = PileType.Hand.GetPile(__instance.Player).Cards;
+            foreach (CardModel c in otherHand)
+            {
+                NCard? display = NCard.Create(c);
+                display?.SetCustomMinimumSize(new Vector2(320,320));
+                CardContainer.GetNode("HBoxContainer").AddChild(display);
+                display?.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
+            }
+        }
+    }
+}
+
+
+
 
