@@ -48,15 +48,7 @@ internal class NMultiplayerPlayerStateOpenHand
             //Very odd solution, create own custom property
             CardContainer.AccessibilityName = __instance.Player.NetId.ToString();
             
-            IReadOnlyList<CardModel> otherHand = PileType.Hand.GetPile(__instance.Player).Cards;
-            
-            foreach (CardModel c in otherHand)
-            {
-                NCard? display = NCard.Create(c);
-                display?.SetCustomMinimumSize(new Vector2(320,320));
-                CardContainer.GetNode("HBoxContainer").AddChild(display);
-                display?.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
-            }
+            CardContainerHandler.GetCards(__instance);
             
             FadeInCards(CardContainer, 0.25f);
             CardContainer.Visible = true;
@@ -89,9 +81,18 @@ internal class NMultiplayerPlayerStateOpenHand
 [HarmonyPatch(typeof(NMultiplayerPlayerState))]
 internal class RefreshCombatValuesOpenHand
 {
+    private static void Postfix(NMultiplayerPlayerState __instance)
+    {
+        CardContainerHandler.GetCards(__instance);
+    }
+}
+
+internal static class CardContainerHandler
+{
     private static NGame? instance = NGame.Instance;
     private static Control? CardContainer;
-    private static void Postfix(NMultiplayerPlayerState __instance)
+
+    public static void GetCards(NMultiplayerPlayerState __instance)
     {
         CardContainer = (Control)instance.GetTree().GetFirstNodeInGroup("CardContainers");
         if (CardContainer != null && __instance.Player.NetId.ToString().Equals(CardContainer.AccessibilityName))
