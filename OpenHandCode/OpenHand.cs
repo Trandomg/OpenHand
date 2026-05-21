@@ -1,4 +1,5 @@
 ﻿using Godot;
+using Godot.NativeInterop;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Helpers;
@@ -50,7 +51,8 @@ internal class NMultiplayerPlayerStateOpenHand
             //Very odd solution, create own custom property
             CardContainer.AccessibilityName = __instance.Player.NetId.ToString();
             
-            CardContainerHandler.GetSetCards(__instance);
+            if(!CardContainerHandler.AllCardsVisible)
+                CardContainerHandler.GetSetCards(__instance);
             
             FadeInCards(CardContainer, 0.25f);
             CardContainer.Visible = true;
@@ -94,6 +96,9 @@ internal static class CardContainerHandler
     private static NGame? instance = NGame.Instance;
     private static Control? CardContainer;
     public static Vector2 CardSize = new Vector2(320, 440);
+
+    public static bool AllCardsVisible { get; set; } = true;
+
     public static void GetSetCards(NMultiplayerPlayerState __instance)
     {
         CardContainer = (Control)instance.GetTree().GetFirstNodeInGroup("CardContainers");
@@ -138,6 +143,7 @@ internal class OnTurnStartedOpenHand
             HBoxContainer newHBox = new HBoxContainer();
             newHBox.Size = CardContainerHandler.CardSize;
             newHBox.SetCustomMinimumSize(CardContainerHandler.CardSize);
+            newHBox.SetMouseFilter(Control.MouseFilterEnum.Ignore);
             allCards.AddChild(newHBox);
             foreach (CardModel c in cards)
             {
@@ -148,14 +154,17 @@ internal class OnTurnStartedOpenHand
             }
         }
         
-        
+
         const int tweenDur = 1;
-        //TODO DOES NOT FADE OUT ON 2 TURN AND ONWARDS
+
         _boxTween?.Kill();
         _boxTween = StartContainer.CreateTween();
-        _boxTween.TweenProperty((GodotObject) allCards, (NodePath) "modulate:a", 1, tweenDur).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
-        _boxTween.TweenInterval(4.0f);
-        _boxTween.TweenProperty((GodotObject) allCards, (NodePath) "modulate:a", 0, tweenDur).SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Expo);
+        allCards.Modulate = new Color(allCards.Modulate.R, allCards.Modulate.G, allCards.Modulate.B,0f);
+        CardContainerHandler.AllCardsVisible = true;
+        _boxTween.TweenProperty((GodotObject) allCards, (NodePath) "modulate:a", 1f, tweenDur).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
+        _boxTween.TweenInterval(3.0f);
+        _boxTween.TweenProperty((GodotObject) allCards, (NodePath) "modulate:a", 0f, tweenDur).SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Expo);
+        _boxTween.TweenCallback(Callable.From(() => CardContainerHandler.AllCardsVisible = false));
     }
 }
 
