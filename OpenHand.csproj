@@ -109,6 +109,7 @@
       <Content Include="OHExample.png" />
       <Content Include="README.md" />
       <Content Include="scenes\CardContainer.tscn" />
+      <Content Include="scenes\CombatStart.tscn" />
     </ItemGroup>
 
     <Target Name="CheckDependencyPaths">

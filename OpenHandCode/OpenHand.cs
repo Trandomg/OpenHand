@@ -8,6 +8,8 @@ using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Entities.Players;
 
 
 namespace OpenHand.OpenHandCode;
@@ -43,7 +45,6 @@ internal class NMultiplayerPlayerStateOpenHand
             {
                 instance?.AddChild(CardContainer);
                 CardContainer.AddToGroup("CardContainers");
-                GD.Print(CardContainer.GetPath());
             }
 
             //Very odd solution, create own custom property
@@ -92,7 +93,7 @@ internal static class CardContainerHandler
 {
     private static NGame? instance = NGame.Instance;
     private static Control? CardContainer;
-
+    public static Vector2 CardSize = new Vector2(320, 440);
     public static void GetSetCards(NMultiplayerPlayerState __instance)
     {
         CardContainer = (Control)instance.GetTree().GetFirstNodeInGroup("CardContainers");
@@ -103,7 +104,7 @@ internal static class CardContainerHandler
             foreach (CardModel c in otherHand)
             {
                 NCard? display = NCard.Create(c);
-                display?.SetCustomMinimumSize(new Vector2(320,320));
+                display?.SetCustomMinimumSize(CardContainerHandler.CardSize);
                 CardContainer.GetNode("HBoxContainer").AddChild(display);
                 display?.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
             }
@@ -111,6 +112,51 @@ internal static class CardContainerHandler
     }
 }
 
-
+[HarmonyPatch("OnTurnStarted")]
+[HarmonyPatch(typeof(NMultiplayerPlayerState))]
+internal class OnTurnStartedOpenHand
+{
+    private static readonly Control StartContainer = SceneHelper.Instantiate<Control>("CombatStart");
+    private static readonly NGame? Instance = NGame.Instance;
+    
+    private static Tween? _boxTween;
+    private async static void Postfix(NMultiplayerPlayerState __instance)
+    {
+        if (StartContainer.GetParent() == null)
+        {
+            Instance?.AddChild(StartContainer);
+            StartContainer.Position = new Vector2(360, 260);
+        }
+        
+        VBoxContainer allCards = (VBoxContainer)StartContainer.GetNode("VBoxContainer");
+        allCards.FreeChildren();
+        var players = __instance.Player.Creature.CombatState?.Players;
+        foreach (Player id in players)
+        {
+            if (LocalContext.IsMe(id)) continue;
+            var cards = PileType.Hand.GetPile(id).Cards;
+            HBoxContainer newHBox = new HBoxContainer();
+            newHBox.Size = CardContainerHandler.CardSize;
+            newHBox.SetCustomMinimumSize(CardContainerHandler.CardSize);
+            allCards.AddChild(newHBox);
+            foreach (CardModel c in cards)
+            {
+                NCard? display = NCard.Create(c);
+                display?.SetCustomMinimumSize(CardContainerHandler.CardSize);
+                newHBox.AddChild(display);
+                display?.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
+            }
+        }
+        
+        
+        const int tweenDur = 1;
+        //TODO DOES NOT FADE OUT ON 2 TURN AND ONWARDS
+        _boxTween?.Kill();
+        _boxTween = StartContainer.CreateTween();
+        _boxTween.TweenProperty((GodotObject) allCards, (NodePath) "modulate:a", 1, tweenDur).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
+        _boxTween.TweenInterval(4.0f);
+        _boxTween.TweenProperty((GodotObject) allCards, (NodePath) "modulate:a", 0, tweenDur).SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Expo);
+    }
+}
 
 
