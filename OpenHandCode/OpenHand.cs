@@ -1,5 +1,4 @@
 ﻿using Godot;
-using Godot.NativeInterop;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Helpers;
@@ -9,7 +8,6 @@ using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 
 
@@ -32,7 +30,9 @@ public class OpenHand
 internal class NMultiplayerPlayerStateOpenHand
 {
     private static readonly Control CardContainer = SceneHelper.Instantiate<Control>("CardContainer");
+    private static readonly Control StartContainer = SceneHelper.Instantiate<Control>("CombatStart");
     private static NGame? instance = NGame.Instance;
+    private static Tween? _boxTween;
     private static void Postfix(NMultiplayerPlayerState __instance)
     {
         AccessTools.FieldRef<NMultiplayerPlayerState, bool> _mouseOverRef = AccessTools.FieldRefAccess<NMultiplayerPlayerState, bool>("_isMouseOver");
@@ -51,8 +51,7 @@ internal class NMultiplayerPlayerStateOpenHand
             //Very odd solution, create own custom property
             CardContainer.AccessibilityName = __instance.Player.NetId.ToString();
             
-            if(!CardContainerHandler.AllCardsVisible)
-                CardContainerHandler.GetSetCards(__instance);
+            CardContainerHandler.GetSetCards(__instance);
             
             FadeInCards(CardContainer, 0.25f);
             CardContainer.Visible = true;
@@ -62,6 +61,46 @@ internal class NMultiplayerPlayerStateOpenHand
             FadeOutCards(CardContainer, 0.25f, 0.0f);
             CardContainer.Visible = false;
             CardContainer.GetNode("HBoxContainer").FreeChildren();
+        }
+        
+        
+        VBoxContainer allCards = (VBoxContainer)StartContainer.GetNode("VBoxContainer");
+        if (_mouseOverRef(__instance) && LocalContext.IsMe(__instance.Player))
+        {
+            if (StartContainer.GetParent() == null)
+            {
+                instance?.AddChild(StartContainer);
+                StartContainer.Position = new Vector2(360, 260);
+            }
+        
+            
+            
+            var players = __instance.Player.Creature.CombatState?.Players;
+            foreach (Player id in players)
+            {
+                if (LocalContext.IsMe(id)) continue;
+                var cards = PileType.Hand.GetPile(id).Cards;
+                HBoxContainer newHBox = new HBoxContainer();
+                newHBox.Size = CardContainerHandler.CardSize;
+                newHBox.SetCustomMinimumSize(CardContainerHandler.CardSize);
+                newHBox.SetMouseFilter(Control.MouseFilterEnum.Ignore);
+                allCards.AddChild(newHBox);
+                foreach (CardModel c in cards)
+                {
+                    NCard? display = NCard.Create(c);
+                    display?.SetCustomMinimumSize(CardContainerHandler.CardSize);
+                    newHBox.AddChild(display);
+                    display?.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
+                }
+            }
+            FadeInCards(StartContainer, 0.25f);
+            StartContainer.Visible = true;
+        }
+        else
+        {
+            FadeOutCards(StartContainer, 0.25f, 0.0f);
+            StartContainer.Visible = false;
+            allCards.FreeChildren();
         }
     }
 
@@ -97,8 +136,6 @@ internal static class CardContainerHandler
     private static Control? CardContainer;
     public static Vector2 CardSize = new Vector2(320, 440);
 
-    public static bool AllCardsVisible { get; set; } = true;
-
     public static void GetSetCards(NMultiplayerPlayerState __instance)
     {
         CardContainer = (Control)instance.GetTree().GetFirstNodeInGroup("CardContainers");
@@ -114,57 +151,6 @@ internal static class CardContainerHandler
                 display?.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
             }
         }
-    }
-}
-
-[HarmonyPatch("OnTurnStarted")]
-[HarmonyPatch(typeof(NMultiplayerPlayerState))]
-internal class OnTurnStartedOpenHand
-{
-    private static readonly Control StartContainer = SceneHelper.Instantiate<Control>("CombatStart");
-    private static readonly NGame? Instance = NGame.Instance;
-    
-    private static Tween? _boxTween;
-    private async static void Postfix(NMultiplayerPlayerState __instance)
-    {
-        if (StartContainer.GetParent() == null)
-        {
-            Instance?.AddChild(StartContainer);
-            StartContainer.Position = new Vector2(360, 260);
-        }
-        
-        VBoxContainer allCards = (VBoxContainer)StartContainer.GetNode("VBoxContainer");
-        allCards.FreeChildren();
-        var players = __instance.Player.Creature.CombatState?.Players;
-        foreach (Player id in players)
-        {
-            if (LocalContext.IsMe(id)) continue;
-            var cards = PileType.Hand.GetPile(id).Cards;
-            HBoxContainer newHBox = new HBoxContainer();
-            newHBox.Size = CardContainerHandler.CardSize;
-            newHBox.SetCustomMinimumSize(CardContainerHandler.CardSize);
-            newHBox.SetMouseFilter(Control.MouseFilterEnum.Ignore);
-            allCards.AddChild(newHBox);
-            foreach (CardModel c in cards)
-            {
-                NCard? display = NCard.Create(c);
-                display?.SetCustomMinimumSize(CardContainerHandler.CardSize);
-                newHBox.AddChild(display);
-                display?.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
-            }
-        }
-        
-
-        const int tweenDur = 1;
-
-        _boxTween?.Kill();
-        _boxTween = StartContainer.CreateTween();
-        allCards.Modulate = new Color(allCards.Modulate.R, allCards.Modulate.G, allCards.Modulate.B,0f);
-        CardContainerHandler.AllCardsVisible = true;
-        _boxTween.TweenProperty((GodotObject) allCards, (NodePath) "modulate:a", 1f, tweenDur).SetEase(Tween.EaseType.Out).SetTrans(Tween.TransitionType.Expo);
-        _boxTween.TweenInterval(3.0f);
-        _boxTween.TweenProperty((GodotObject) allCards, (NodePath) "modulate:a", 0f, tweenDur).SetEase(Tween.EaseType.In).SetTrans(Tween.TransitionType.Expo);
-        _boxTween.TweenCallback(Callable.From(() => CardContainerHandler.AllCardsVisible = false));
     }
 }
 
